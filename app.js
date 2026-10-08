@@ -187,6 +187,11 @@
   const num = (v, d = 0) =>
     v.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
+  // события для Google Analytics; сам счётчик подключён в index.html и на localhost выключен
+  const track = (name, params) => {
+    if (typeof gtag === 'function') gtag('event', name, params);
+  };
+
   // ---------- задания и очки ----------
 
   function challenge(seed) {
@@ -613,6 +618,7 @@
       </section>`);
     $('#go').addEventListener('click', () => {
       game = dailyGame(date, saved.slice());
+      track('game_start', { mode: 'daily', day: game.no, resumed: saved.length > 0 });
       renderRound();
     });
   }
@@ -648,6 +654,7 @@
         if (finished) return;
         finished = true;
         game.scores.push(pts);
+        track('round_done', { mode: game.mode, round: id, score: pts });
         if (game.mode === 'daily') {
           store.cur = { key: game.key, scores: game.scores };
           save();
@@ -680,8 +687,9 @@
   }
 
   function complete() {
+    const total = totalOf(game.scores);
+    track('game_finish', { mode: game.mode, day: game.no, score: total });
     if (game.mode === 'daily') {
-      const total = totalOf(game.scores);
       const prev = new Date(game.date);
       prev.setDate(prev.getDate() - 1);
       store.streak = store.last && store.last.key === dayKey(prev) ? (store.streak || 0) + 1 : 1;
@@ -748,7 +756,7 @@
           </ul>
         </div>
         <div class="share">
-          <a class="btn btn--primary" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}">${L.share}</a>
+          <a class="btn btn--primary" id="tweet" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}">${L.share}</a>
           <button class="btn" id="copy" type="button">${L.copy}</button>
         </div>
         ${daily
@@ -766,9 +774,13 @@
 
     countUp($('.total__num', app), total, 900);
 
+    const shared = method => track('share', { method, mode: g.mode, score: total });
+    $('#tweet').addEventListener('click', () => shared('x'));
+
     const copyBtn = $('#copy');
     copyBtn.addEventListener('click', async () => {
       if (!(await copyText(text))) return;
+      shared('copy');
       copyBtn.textContent = L.copied;
       const t = setTimeout(() => {
         copyBtn.textContent = L.copy;
@@ -778,6 +790,7 @@
 
     $('#practice').addEventListener('click', () => {
       game = practiceGame();
+      track('game_start', { mode: 'practice' });
       renderRound();
     });
     $('#home')?.addEventListener('click', renderHome);
@@ -814,6 +827,8 @@
     lang = lang === 'ru' ? 'en' : 'ru';
     store.lang = lang;
     save();
+    if (typeof gtag === 'function') gtag('set', 'user_properties', { ui_lang: lang });
+    track('lang_switch', { ui_lang: lang });
     chrome();
     if (screen === 'round') renderRound();
     else if (screen === 'result') renderResult(game);
