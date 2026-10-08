@@ -100,6 +100,20 @@ button, input { font: inherit; }
   font: 600 12px/1 var(--mono);
 }
 
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 27px;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.icon-btn svg { width: 15px; height: 15px; }
+
 .lang {
   background: var(--ink);
   color: var(--paper);
@@ -231,6 +245,8 @@ button, input { font: inherit; }
 
 .kinds li:first-child { border-left: 0; }
 .kinds span { font-size: 22px; line-height: 1; }
+
+.home .btn--ghost { margin-top: 20px; }
 
 .fine {
   margin: 16px 0 0;
@@ -498,9 +514,6 @@ button, input { font: inherit; }
 
 .share { display: grid; gap: 14px; margin-bottom: 24px; }
 
-.share__more { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.share__more > :last-child:nth-child(odd) { grid-column: 1 / -1; }
-
 .meta {
   display: flex;
   justify-content: space-between;
@@ -535,6 +548,51 @@ button, input { font: inherit; }
   color: var(--muted);
   font: 500 11px/1.4 var(--mono);
   text-align: center;
+}
+
+/* ---------- окно «Поделиться» ---------- */
+
+.share-sheet {
+  width: min(440px, calc(100% - 24px));
+  max-width: none;
+  margin: auto auto 12px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  background: var(--card);
+  box-shadow: 6px 6px 0 var(--ink);
+  color: var(--ink);
+}
+
+.share-sheet[open] { animation: rise .2s ease-out both; }
+.share-sheet::backdrop { background: rgba(0, 0, 0, .55); }
+
+/* справа и снизу запас под жёсткие тени кнопок */
+.share-sheet__box { padding: 16px 20px 20px 16px; }
+
+.share-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.share-sheet__head h2 { margin: 0; font: 700 16px/1.2 var(--display); }
+
+.share-sheet__x {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: 700 20px/1 var(--mono);
+  cursor: pointer;
+}
+
+.share-sheet__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+@media (min-width: 560px) {
+  .share-sheet { margin: auto; }
 }
 
 /* ---------- анимации ---------- */

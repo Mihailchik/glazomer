@@ -61,9 +61,14 @@
       ],
       quote: ['«', '»'],
       practice: 'Тренировка',
-      share: 'Поделиться в X',
+      shareResult: 'Поделиться результатом',
+      shareGame: 'Поделиться игрой',
+      shareVia: 'Куда отправить',
+      pitch: 'Насколько точен твой глазомер? Пять заданий на глаз, одна попытка в день.',
+      dare: 'А у тебя сколько?',
+      email: 'Почта',
+      close: 'Закрыть',
       copy: 'Скопировать',
-      more: 'Ещё…',
       copied: 'Скопировано',
       streak: 'Серия',
       best: 'Рекорд',
@@ -122,9 +127,14 @@
       ],
       quote: ['“', '”'],
       practice: 'Practice',
-      share: 'Share on X',
+      shareResult: 'Share result',
+      shareGame: 'Share the game',
+      shareVia: 'Share via',
+      pitch: 'How good is your eye, really? Five tasks, no ruler, one attempt a day.',
+      dare: 'Can you beat it?',
+      email: 'Email',
+      close: 'Close',
       copy: 'Copy',
-      more: 'More…',
       copied: 'Copied',
       streak: 'Streak',
       best: 'Best',
@@ -617,7 +627,9 @@
         </ul>
         <button class="btn btn--primary" id="go" type="button">${saved.length ? L.resume : L.go}</button>
         <p class="fine">${L.fine}</p>
+        <button class="btn btn--ghost" id="tell" type="button">${L.shareGame}</button>
       </section>`);
+    $('#tell').addEventListener('click', () => share(sitePayload()));
     $('#go').addEventListener('click', () => {
       game = dailyGame(date, saved.slice());
       track('game_start', { mode: 'daily', day: game.no, resumed: saved.length > 0 });
@@ -703,18 +715,18 @@
     renderResult(game);
   }
 
-  // текст и ссылка отдельно: Telegram принимает ссылку своим параметром
-  function shareParts(g) {
+  // Текст результата без ссылки: полный, с сеткой, и короткий, в одну строку.
+  function shareTexts(g) {
     const L = T();
     const total = totalOf(g.scores);
-    const daily = g.mode === 'daily';
-    const head = daily
+    const head = g.mode === 'daily'
       ? `${L.name} №${g.no} — ${total}/100${store.streak >= 2 ? ` 🔥${store.streak}` : ''}`
       : `${L.name} · ${L.practice.toLowerCase()} — ${total}/100`;
     const rows = ROUND_IDS.map((id, i) => `${ICONS[id]} ${squares(g.scores[i]).map(c => EMOJI[c]).join('')}`);
+    const verdict = `${L.quote[0]}${tier(total)}${L.quote[1]}`;
     return {
-      body: [head, ...rows, `${L.quote[0]}${tier(total)}${L.quote[1]}`].join('\n'),
-      url: location.origin + location.pathname,
+      text: [head, ...rows, verdict].join('\n'),
+      short: `${head} · ${verdict}. ${L.dare}`,
     };
   }
 
@@ -734,14 +746,103 @@
     }
   }
 
+  // ---------- поделиться ----------
+
+  const enc = encodeURIComponent;
+  const siteUrl = () => location.origin + location.pathname;
+  const full = p => `${p.text}\n\n${p.url}`;
+
+  // Куда умеем отправить готовый пост. Telegram ставит ссылку первой и на части
+  // клиентов склеивает переносы строк, поэтому ему уходит короткая строка без сетки.
+  // Facebook и LinkedIn текст не принимают: берут ссылку и сами подтягивают карточку.
+  const TARGETS = {
+    telegram: { label: 'Telegram', href: p => `https://t.me/share/url?url=${enc(p.url)}&text=${enc(p.short)}` },
+    whatsapp: { label: 'WhatsApp', href: p => `https://wa.me/?text=${enc(full(p))}` },
+    x: { label: 'X', href: p => `https://twitter.com/intent/tweet?text=${enc(full(p))}` },
+    threads: { label: 'Threads', href: p => `https://www.threads.net/intent/post?text=${enc(full(p))}` },
+    vk: { label: 'VK', href: p => `https://vk.com/share.php?url=${enc(p.url)}&title=${enc(p.short)}` },
+    facebook: { label: 'Facebook', href: p => `https://www.facebook.com/sharer/sharer.php?u=${enc(p.url)}` },
+    reddit: { label: 'Reddit', href: p => `https://www.reddit.com/submit?url=${enc(p.url)}&title=${enc(p.short)}` },
+    linkedin: { label: 'LinkedIn', href: p => `https://www.linkedin.com/sharing/share-offsite/?url=${enc(p.url)}` },
+    email: { label: '', href: p => `mailto:?subject=${enc(p.title)}&body=${enc(full(p))}` },
+  };
+  const targetLabel = id => (id === 'email' ? T().email : TARGETS[id].label);
+
+  // что именно отправляем: саму игру или сыгранный результат
+  const sitePayload = () => ({ kind: 'site', title: T().name, text: T().pitch, short: T().pitch, url: siteUrl() });
+  const resultPayload = g => ({ kind: 'result', title: T().name, ...shareTexts(g), url: siteUrl(), score: totalOf(g.scores) });
+
+  const shared = (p, method) => track('share', { method, content: p.kind, score: p.score });
+
+  // На телефонах открываем системное меню «Поделиться»; там, где его нет, — своё окно со списком.
+  async function share(p) {
+    if (navigator.share) {
+      try {
+        await navigator.share(p.kind === 'site' ? { title: p.title, text: p.text, url: p.url } : { text: full(p) });
+        shared(p, 'native');
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // меню закрыли без выбора
+      }
+    }
+    openSheet(p);
+  }
+
+  function openSheet(p) {
+    const L = T();
+    const dlg = document.createElement('dialog');
+    dlg.className = 'share-sheet';
+    dlg.innerHTML = `
+      <div class="share-sheet__box">
+        <div class="share-sheet__head">
+          <h2>${L.shareVia}</h2>
+          <button class="share-sheet__x" type="button" aria-label="${L.close}">×</button>
+        </div>
+        <div class="share-sheet__grid">
+          ${Object.keys(TARGETS).map(id => `<a class="btn btn--sm" data-via="${id}" target="_blank" rel="noopener">${targetLabel(id)}</a>`).join('')}
+          <button class="btn btn--sm" type="button" data-copy>${L.copy}</button>
+        </div>
+      </div>`;
+
+    // убираем окно сами: событие close в фоновой вкладке может не прийти
+    const close = () => {
+      if (dlg.open) dlg.close();
+      dlg.remove();
+    };
+
+    // адрес подставляем через DOM, чтобы не экранировать его в разметке
+    dlg.querySelectorAll('a[data-via]').forEach(a => {
+      a.href = TARGETS[a.dataset.via].href(p);
+      a.addEventListener('click', () => {
+        shared(p, a.dataset.via);
+        close();
+      });
+    });
+
+    const copy = $('[data-copy]', dlg);
+    copy.addEventListener('click', async () => {
+      if (!(await copyText(full(p)))) return;
+      shared(p, 'copy');
+      copy.textContent = L.copied;
+      setTimeout(close, 900);
+    });
+
+    $('.share-sheet__x', dlg).addEventListener('click', close);
+    // щелчок мимо окна попадает в сам dialog, а не в его содержимое
+    dlg.addEventListener('click', e => {
+      if (e.target === dlg) close();
+    });
+    dlg.addEventListener('close', close); // Esc
+    document.body.append(dlg);
+    dlg.showModal();
+  }
+
   function renderResult(g) {
     const L = T();
     const daily = g.mode === 'daily';
     const total = totalOf(g.scores);
     const d = g.date;
-    const { body, url } = shareParts(g);
-    const text = `${body}\n\n${url}`;
-    const enc = encodeURIComponent;
+    const p = resultPayload(g);
     screen = 'result';
     game = g;
     mountScreen(`
@@ -764,13 +865,7 @@
           </ul>
         </div>
         <div class="share">
-          <a class="btn btn--primary" data-share="x" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${enc(text)}">${L.share}</a>
-          <div class="share__more">
-            <a class="btn btn--sm" data-share="telegram" target="_blank" rel="noopener" href="https://t.me/share/url?url=${enc(url)}&text=${enc(body)}">Telegram</a>
-            <a class="btn btn--sm" data-share="threads" target="_blank" rel="noopener" href="https://www.threads.net/intent/post?text=${enc(text)}">Threads</a>
-            ${navigator.share ? `<button class="btn btn--sm" id="more" type="button">${L.more}</button>` : ''}
-            <button class="btn btn--sm" id="copy" type="button">${L.copy}</button>
-          </div>
+          <button class="btn btn--primary" id="shareResult" type="button">${L.shareResult}</button>
         </div>
         ${daily
           ? `<div class="meta">
@@ -787,27 +882,7 @@
 
     countUp($('.total__num', app), total, 900);
 
-    const shared = method => track('share', { method, mode: g.mode, score: total });
-    app.querySelectorAll('[data-share]').forEach(a => a.addEventListener('click', () => shared(a.dataset.share)));
-    $('#more')?.addEventListener('click', async () => {
-      try {
-        await navigator.share({ text });
-        shared('native');
-      } catch {
-        // системное меню закрыли без выбора — это не ошибка
-      }
-    });
-
-    const copyBtn = $('#copy');
-    copyBtn.addEventListener('click', async () => {
-      if (!(await copyText(text))) return;
-      shared('copy');
-      copyBtn.textContent = L.copied;
-      const t = setTimeout(() => {
-        copyBtn.textContent = L.copy;
-      }, 1600);
-      cleanups.push(() => clearTimeout(t));
-    });
+    $('#shareResult').addEventListener('click', () => share(p));
 
     $('#practice').addEventListener('click', () => {
       game = practiceGame();
@@ -840,10 +915,13 @@
     $('#brandName').textContent = L.name;
     $('#dayNo').textContent = `№${dayNo(today())}`;
     $('#lang').textContent = lang === 'ru' ? 'EN' : 'RU';
+    $('#shareGame').setAttribute('aria-label', L.shareGame);
+    $('#shareGame').title = L.shareGame;
     $('#foot').textContent = L.foot;
   }
 
   $('#brand').addEventListener('click', renderHome);
+  $('#shareGame').addEventListener('click', () => share(sitePayload()));
   $('#lang').addEventListener('click', () => {
     lang = lang === 'ru' ? 'en' : 'ru';
     store.lang = lang;
