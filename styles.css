@@ -151,6 +151,7 @@ button, input { font: inherit; }
 }
 
 .btn--primary { background: var(--accent); color: var(--on-accent); }
+.btn--sm { min-height: 48px; padding: 0 10px; box-shadow: 3px 3px 0 var(--ink); font-size: 13px; }
 .btn--stop { background: var(--ink); color: var(--paper); }
 
 .btn--ghost {
@@ -496,6 +497,9 @@ button, input { font: inherit; }
 .sq .y { background: var(--warn); }
 
 .share { display: grid; gap: 14px; margin-bottom: 24px; }
+
+.share__more { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.share__more > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 
 .meta {
   display: flex;

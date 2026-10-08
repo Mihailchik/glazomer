@@ -62,7 +62,8 @@
       quote: ['«', '»'],
       practice: 'Тренировка',
       share: 'Поделиться в X',
-      copy: 'Скопировать результат',
+      copy: 'Скопировать',
+      more: 'Ещё…',
       copied: 'Скопировано',
       streak: 'Серия',
       best: 'Рекорд',
@@ -122,7 +123,8 @@
       quote: ['“', '”'],
       practice: 'Practice',
       share: 'Share on X',
-      copy: 'Copy result',
+      copy: 'Copy',
+      more: 'More…',
       copied: 'Copied',
       streak: 'Streak',
       best: 'Best',
@@ -701,7 +703,8 @@
     renderResult(game);
   }
 
-  function shareText(g) {
+  // текст и ссылка отдельно: Telegram принимает ссылку своим параметром
+  function shareParts(g) {
     const L = T();
     const total = totalOf(g.scores);
     const daily = g.mode === 'daily';
@@ -709,7 +712,10 @@
       ? `${L.name} №${g.no} — ${total}/100${store.streak >= 2 ? ` 🔥${store.streak}` : ''}`
       : `${L.name} · ${L.practice.toLowerCase()} — ${total}/100`;
     const rows = ROUND_IDS.map((id, i) => `${ICONS[id]} ${squares(g.scores[i]).map(c => EMOJI[c]).join('')}`);
-    return [head, ...rows, `${L.quote[0]}${tier(total)}${L.quote[1]}`, '', location.origin + location.pathname].join('\n');
+    return {
+      body: [head, ...rows, `${L.quote[0]}${tier(total)}${L.quote[1]}`].join('\n'),
+      url: location.origin + location.pathname,
+    };
   }
 
   async function copyText(text) {
@@ -733,7 +739,9 @@
     const daily = g.mode === 'daily';
     const total = totalOf(g.scores);
     const d = g.date;
-    const text = shareText(g);
+    const { body, url } = shareParts(g);
+    const text = `${body}\n\n${url}`;
+    const enc = encodeURIComponent;
     screen = 'result';
     game = g;
     mountScreen(`
@@ -756,8 +764,13 @@
           </ul>
         </div>
         <div class="share">
-          <a class="btn btn--primary" id="tweet" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}">${L.share}</a>
-          <button class="btn" id="copy" type="button">${L.copy}</button>
+          <a class="btn btn--primary" data-share="x" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${enc(text)}">${L.share}</a>
+          <div class="share__more">
+            <a class="btn btn--sm" data-share="telegram" target="_blank" rel="noopener" href="https://t.me/share/url?url=${enc(url)}&text=${enc(body)}">Telegram</a>
+            <a class="btn btn--sm" data-share="threads" target="_blank" rel="noopener" href="https://www.threads.net/intent/post?text=${enc(text)}">Threads</a>
+            ${navigator.share ? `<button class="btn btn--sm" id="more" type="button">${L.more}</button>` : ''}
+            <button class="btn btn--sm" id="copy" type="button">${L.copy}</button>
+          </div>
         </div>
         ${daily
           ? `<div class="meta">
@@ -775,7 +788,15 @@
     countUp($('.total__num', app), total, 900);
 
     const shared = method => track('share', { method, mode: g.mode, score: total });
-    $('#tweet').addEventListener('click', () => shared('x'));
+    app.querySelectorAll('[data-share]').forEach(a => a.addEventListener('click', () => shared(a.dataset.share)));
+    $('#more')?.addEventListener('click', async () => {
+      try {
+        await navigator.share({ text });
+        shared('native');
+      } catch {
+        // системное меню закрыли без выбора — это не ошибка
+      }
+    });
 
     const copyBtn = $('#copy');
     copyBtn.addEventListener('click', async () => {
